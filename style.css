@@ -1,0 +1,432 @@
+/* ========================================
+   リセット・基本設定
+   ======================================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: #FFFFFF;
+    font-family: '遊ゴシック', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 10px;
+}
+
+/* ========================================
+   コンテナ・レイアウト
+   ======================================== */
+.container {
+    width: 100%;
+    max-width: 420px;
+}
+
+.calculator {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+   ヘッダー
+   ======================================== */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.header h1 {
+    font-size: 1.6em;
+    color: #FF7043;
+}
+
+.header-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.toggle-btn {
+    background: rgba(255, 255, 255, 0.07);
+    color: #C8D2DC;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    min-width: 52px;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.toggle-btn.active {
+    background: rgba(255, 112, 67, 0.25);
+    color: #FF7043;
+    border-color: #FF7043;
+}
+
+/* ========================================
+   ディスプレイ
+   ======================================== */
+.display-section {
+    background: #0F2027;
+    border: 1px solid #3A5564;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    text-align: right;
+}
+
+.display {
+    font-size: 2.5em;
+    font-weight: 300;
+    color: #FFFFFF;
+    word-wrap: break-word;
+    word-break: break-all;
+    min-height: 50px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    line-height: 1.2;
+}
+
+.expression {
+    font-size: 0.9em;
+    color: #8A9AB5;
+    margin-top: 8px;
+    min-height: 20px;
+}
+
+/* ========================================
+   ボタングリッド
+   ======================================== */
+.buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.sci-buttons {
+    margin-bottom: 8px;
+}
+
+.sci-buttons.hidden {
+    display: none;
+}
+
+.btn {
+    padding: 16px 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.3em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    text-transform: none;
+}
+
+.btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+}
+
+/* 数字ボタン */
+.btn-number {
+    background: #21384A;
+    color: #FFFFFF;
+    border: 1px solid #3A5564;
+}
+
+.btn-number:hover {
+    background: #2C4A5F;
+    border-color: #FF7043;
+}
+
+.btn-number:active {
+    background: #1A2F40;
+    border-color: #FF5722;
+}
+
+/* 演算子ボタン */
+.btn-operator {
+    background: rgba(255, 112, 67, 0.15);
+    color: #FF7043;
+    border: 1px solid rgba(255, 112, 67, 0.4);
+}
+
+.btn-operator:hover {
+    background: rgba(255, 112, 67, 0.25);
+    border-color: #FF7043;
+    color: #FFFFFF;
+}
+
+.btn-operator:active {
+    background: #FF7043;
+    color: #FFFFFF;
+    border-color: #FF5722;
+}
+
+/* 関数ボタン（C・←） */
+.btn-function {
+    background: rgba(255, 255, 255, 0.07);
+    color: #C8D2DC;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.btn-function:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btn-function:active {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* イコールボタン */
+.btn-equals {
+    background: #FF7043;
+    color: #FFFFFF;
+    border: none;
+    font-size: 1.5em;
+}
+
+.btn-equals:hover {
+    background: #FF5722;
+}
+
+.btn-equals:active {
+    background: #E64A19;
+}
+
+/* パーセントボタン */
+.btn-percent {
+    background: rgba(255, 112, 67, 0.1);
+    color: #FF9999;
+    border: 1px solid rgba(255, 112, 67, 0.3);
+}
+
+.btn-percent:hover {
+    background: rgba(255, 112, 67, 0.2);
+    border-color: #FF7043;
+}
+
+/* 関数キー（sin/cos/log など） */
+.btn-sci {
+    background: rgba(200, 210, 220, 0.08);
+    color: #C8D2DC;
+    border: 1px solid rgba(200, 210, 220, 0.25);
+    font-size: 1em;
+    padding: 12px 10px;
+    font-style: italic;
+}
+
+.btn-sci:hover {
+    background: rgba(255, 112, 67, 0.15);
+    color: #FF7043;
+    border-color: rgba(255, 112, 67, 0.4);
+}
+
+.btn-sci:active {
+    background: rgba(255, 112, 67, 0.3);
+    color: #FFFFFF;
+}
+
+.btn-sci sup {
+    font-size: 0.7em;
+    vertical-align: super;
+}
+
+/* ========================================
+   履歴セクション
+   ======================================== */
+.history-section {
+    background: #0F2027;
+    border: 1px solid #3A5564;
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 180px;
+    overflow-y: auto;
+    margin-top: 10px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #3A5564;
+}
+
+.history-header h3 {
+    font-size: 0.95em;
+    color: #FF7043;
+}
+
+.btn-small {
+    background: rgba(255, 255, 255, 0.07);
+    color: #C8D2DC;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.btn-small:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+}
+
+.history {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.history li {
+    padding: 10px;
+    background: rgba(255, 112, 67, 0.08);
+    border-left: 2px solid #FF7043;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: #C8D2DC;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.history li:hover {
+    background: rgba(255, 112, 67, 0.15);
+    color: #FFFFFF;
+    padding-left: 14px;
+}
+
+.history-empty {
+    text-align: center;
+    color: #8A9AB5;
+    font-size: 0.85em;
+    padding: 20px 10px;
+}
+
+/* ========================================
+   レスポンシブ対応
+   ======================================== */
+@media (max-width: 480px) {
+    .calculator {
+        padding: 16px;
+    }
+
+    .header h1 {
+        font-size: 1.4em;
+    }
+
+    .display {
+        font-size: 2em;
+    }
+
+    .btn {
+        padding: 14px 8px;
+        font-size: 1.1em;
+    }
+
+    .btn-sci {
+        padding: 10px 6px;
+        font-size: 0.95em;
+    }
+
+    .history-section {
+        max-height: 140px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    body {
+        padding: 5px;
+    }
+
+    .calculator {
+        padding: 12px;
+    }
+
+    .header {
+        margin-bottom: 10px;
+    }
+
+    .header h1 {
+        font-size: 1.2em;
+    }
+
+    .display {
+        font-size: 1.6em;
+        min-height: 36px;
+    }
+
+    .display-section {
+        margin-bottom: 10px;
+        padding: 8px;
+    }
+
+    .buttons {
+        gap: 5px;
+    }
+
+    .btn {
+        padding: 8px 6px;
+        font-size: 1em;
+    }
+
+    .btn-sci {
+        padding: 6px 4px;
+        font-size: 0.85em;
+    }
+
+    .history-section {
+        display: none;
+    }
+}
+
+/* スクロールバー */
+.history-section::-webkit-scrollbar {
+    width: 6px;
+}
+
+.history-section::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.history-section::-webkit-scrollbar-thumb {
+    background: rgba(255, 112, 67, 0.4);
+    border-radius: 3px;
+}
+
+.history-section::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 112, 67, 0.6);
+}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>関数電卓 v2</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="calculator" id="calculator">
+            <div class="header">
+                <h1>関数電卓</h1>
+                <div class="header-controls">
+                    <button class="toggle-btn" id="angleToggle" data-mode="DEG" title="角度モード切替">DEG</button>
+                    <button class="toggle-btn" id="sciToggle" title="関数キーの表示切替">Sci</button>
+                </div>
+            </div>
+
+            <!-- ディスプレイ -->
+            <div class="display-section">
+                <div class="display" id="display">0</div>
+                <div class="expression" id="expression"></div>
+            </div>
+
+            <!-- 関数ボタン行（Sci モード時のみ表示） -->
+            <div class="buttons sci-buttons" id="sciButtons">
+                <!-- Sci 第1行 -->
+                <button class="btn btn-sci" data-fn="sin">sin</button>
+                <button class="btn btn-sci" data-fn="cos">cos</button>
+                <button class="btn btn-sci" data-fn="tan">tan</button>
+                <button class="btn btn-sci" data-fn="sqrt">√</button>
+
+                <!-- Sci 第2行 -->
+                <button class="btn btn-sci" data-fn="log10">log</button>
+                <button class="btn btn-sci" data-fn="ln">ln</button>
+                <button class="btn btn-sci" data-fn="square">x²</button>
+                <button class="btn btn-sci" data-fn="recip">1/x</button>
+
+                <!-- Sci 第3行 -->
+                <button class="btn btn-sci" data-const="pi">π</button>
+                <button class="btn btn-sci" data-const="e">e</button>
+                <button class="btn btn-sci" data-operator="^">x<sup>y</sup></button>
+                <button class="btn btn-sci" data-action="negate">±</button>
+            </div>
+
+            <!-- 基本ボタングリッド -->
+            <div class="buttons">
+                <!-- 第1行 -->
+                <button class="btn btn-function" data-action="clear">C</button>
+                <button class="btn btn-function" data-action="backspace">←</button>
+                <button class="btn btn-operator" data-operator="/">÷</button>
+                <button class="btn btn-operator" data-operator="*">×</button>
+
+                <!-- 第2行 -->
+                <button class="btn btn-number" data-number="7">7</button>
+                <button class="btn btn-number" data-number="8">8</button>
+                <button class="btn btn-number" data-number="9">9</button>
+                <button class="btn btn-operator" data-operator="-">−</button>
+
+                <!-- 第3行 -->
+                <button class="btn btn-number" data-number="4">4</button>
+                <button class="btn btn-number" data-number="5">5</button>
+                <button class="btn btn-number" data-number="6">6</button>
+                <button class="btn btn-operator" data-operator="+">+</button>
+
+                <!-- 第4行 -->
+                <button class="btn btn-number" data-number="1">1</button>
+                <button class="btn btn-number" data-number="2">2</button>
+                <button class="btn btn-number" data-number="3">3</button>
+                <button class="btn btn-percent" data-action="percent">%</button>
+
+                <!-- 第5行 -->
+                <button class="btn btn-number" data-number="0" style="grid-column: 1 / 3;">0</button>
+                <button class="btn btn-number" data-number=".">.</button>
+                <button class="btn btn-equals" data-action="equals">=</button>
+            </div>
+
+            <!-- 履歴セクション -->
+            <div class="history-section">
+                <div class="history-header">
+                    <h3>計算履歴</h3>
+                    <button class="btn-small" id="clearHistory">クリア</button>
+                </div>
+                <ul class="history" id="history"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
