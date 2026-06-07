@@ -19,6 +19,9 @@
 
             <!-- ディスプレイ -->
             <div class="display-section">
+                <div class="display-meta">
+                    <span class="memory-indicator" id="memoryIndicator"></span>
+                </div>
                 <div class="display" id="display">0</div>
                 <div class="expression" id="expression"></div>
             </div>
@@ -42,6 +45,14 @@
                 <button class="btn btn-sci" data-const="e">e</button>
                 <button class="btn btn-sci" data-operator="^">x<sup>y</sup></button>
                 <button class="btn btn-sci" data-action="negate">±</button>
+            </div>
+
+            <!-- メモリボタン行（常に表示） -->
+            <div class="buttons memory-buttons">
+                <button class="btn btn-memory" data-memory="clear" title="メモリをクリア">MC</button>
+                <button class="btn btn-memory" data-memory="recall" title="メモリを呼び出し">MR</button>
+                <button class="btn btn-memory" data-memory="add" title="現在値をメモリに加算">M+</button>
+                <button class="btn btn-memory" data-memory="sub" title="現在値をメモリから減算">M−</button>
             </div>
 
             <!-- 基本ボタングリッド -->

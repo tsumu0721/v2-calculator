@@ -1,39 +1,60 @@
 /**
  * 関数電卓 v2 - JavaScript ロジック
  *
- * v1 (四則演算) からの主な拡張：
+ * 機能：
+ * - 四則演算＋優先順位（× ÷ ^ を + − より先に評価）
  * - 単項関数: sin / cos / tan / log / ln / √ / x² / 1/x
- * - 二項演算子: x^y（べき乗）
+ * - 二項演算子: x^y
  * - 定数: π / e
- * - 角度モード: DEG / RAD 切替（三角関数に適用）
- * - Sci トグル: 関数キーの表示／非表示
- * - キーボード対応の拡張
+ * - 角度モード: DEG / RAD
+ * - Sci トグル
+ * - メモリ: MC / MR / M+ / M−
+ * - 履歴 + 設定の localStorage 永続化
  */
 
 class ScientificCalculator {
     constructor() {
+        // DOM
         this.display = document.getElementById('display');
         this.expression = document.getElementById('expression');
+        this.memoryIndicator = document.getElementById('memoryIndicator');
         this.historyList = document.getElementById('history');
         this.clearHistoryBtn = document.getElementById('clearHistory');
         this.angleToggle = document.getElementById('angleToggle');
         this.sciToggle = document.getElementById('sciToggle');
         this.sciButtons = document.getElementById('sciButtons');
 
+        // 入力状態
         this.currentValue = '0';
-        this.previousValue = '';
-        this.operator = null;
         this.shouldResetDisplay = false;
-        this.history = [];
 
+        // 二段階優先順位の評価状態
+        // 低優先（+ −）: lowAcc を左オペランドとして lowOp を待機
+        // 高優先（* / ^）: highAcc を左オペランドとして highOp を待機
+        this.lowAcc = null;
+        this.lowOp = null;
+        this.highAcc = null;
+        this.highOp = null;
+        this.expressionStr = '';
+
+        // メモリ
+        this.memory = 0;
+
+        // モード
         this.angleMode = 'DEG';
         this.sciMode = true;
 
+        // 履歴
+        this.history = [];
+
+        // 初期化
         this.loadHistory();
         this.loadPreferences();
+        this.loadMemory();
         this.setupEventListeners();
         this.applyAngleMode();
         this.applySciMode();
+        this.updateMemoryIndicator();
         this.updateDisplay();
     }
 
@@ -41,11 +62,9 @@ class ScientificCalculator {
         document.querySelectorAll('[data-number]').forEach(btn => {
             btn.addEventListener('click', (e) => this.handleNumber(e.currentTarget.dataset.number));
         });
-
         document.querySelectorAll('[data-operator]').forEach(btn => {
             btn.addEventListener('click', (e) => this.handleOperator(e.currentTarget.dataset.operator));
         });
-
         document.querySelectorAll('[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const action = e.currentTarget.dataset.action;
@@ -56,13 +75,14 @@ class ScientificCalculator {
                 if (action === 'negate') this.negate();
             });
         });
-
         document.querySelectorAll('[data-fn]').forEach(btn => {
             btn.addEventListener('click', (e) => this.applyUnary(e.currentTarget.dataset.fn));
         });
-
         document.querySelectorAll('[data-const]').forEach(btn => {
             btn.addEventListener('click', (e) => this.insertConstant(e.currentTarget.dataset.const));
+        });
+        document.querySelectorAll('[data-memory]').forEach(btn => {
+            btn.addEventListener('click', (e) => this.handleMemory(e.currentTarget.dataset.memory));
         });
 
         this.angleToggle.addEventListener('click', () => this.toggleAngleMode());
@@ -73,7 +93,7 @@ class ScientificCalculator {
     }
 
     /* ----------------------------------------------------------
-       基本入力
+       数字入力
     ---------------------------------------------------------- */
     handleNumber(num) {
         if (this.shouldResetDisplay) {
@@ -90,57 +110,132 @@ class ScientificCalculator {
         this.updateDisplay();
     }
 
-    handleOperator(op) {
-        if (this.operator !== null && !this.shouldResetDisplay) {
-            this.executeCalculation();
+    /* ----------------------------------------------------------
+       二項演算（× ÷ ^ を先に評価する）
+    ---------------------------------------------------------- */
+    isHighPriority(op) {
+        return op === '*' || op === '/' || op === '^';
+    }
+
+    applyBinary(op, a, b) {
+        switch (op) {
+            case '+': return a + b;
+            case '-': return a - b;
+            case '*': return a * b;
+            case '/':
+                if (b === 0) { this.showError('0で割ることはできません'); return null; }
+                return a / b;
+            case '^': return Math.pow(a, b);
         }
-        this.previousValue = this.currentValue;
-        this.operator = op;
+        return null;
+    }
+
+    handleOperator(op) {
+        const isHigh = this.isHighPriority(op);
+        const symbol = this.getOperatorSymbol(op);
+
+        // 連続して演算子を押した場合は記号だけ置き換え
+        if (this.shouldResetDisplay) {
+            if (isHigh) {
+                if (this.highOp !== null) {
+                    this.highOp = op;
+                } else if (this.lowOp !== null) {
+                    // 低優先 → 高優先 に乗り換え
+                    this.highAcc = parseFloat(this.currentValue);
+                    this.highOp = op;
+                    this.lowAcc = null;
+                    this.lowOp = null;
+                }
+            } else {
+                if (this.lowOp !== null) {
+                    this.lowOp = op;
+                } else if (this.highOp !== null) {
+                    // 高優先 → 低優先 に乗り換え
+                    this.lowAcc = parseFloat(this.currentValue);
+                    this.lowOp = op;
+                    this.highAcc = null;
+                    this.highOp = null;
+                }
+            }
+            this.expressionStr = this.expressionStr.replace(/\s[+−×÷^]\s$/, ` ${symbol} `);
+            this.updateExpression();
+            return;
+        }
+
+        const x = parseFloat(this.currentValue);
+        if (isNaN(x)) return;
+        const displayValue = this.currentValue;
+
+        if (isHigh) {
+            // 高優先連鎖（左結合）：保留中の高優先を即確定
+            let leftForHigh = x;
+            if (this.highOp !== null) {
+                const r = this.applyBinary(this.highOp, this.highAcc, x);
+                if (r === null) return;
+                leftForHigh = r;
+            }
+            this.highAcc = leftForHigh;
+            this.highOp = op;
+            this.currentValue = this.roundResult(leftForHigh).toString();
+        } else {
+            // 低優先：保留中の高優先 → 低優先 を順に確定
+            let resolved = x;
+            if (this.highOp !== null) {
+                const r = this.applyBinary(this.highOp, this.highAcc, x);
+                if (r === null) return;
+                resolved = r;
+                this.highOp = null;
+                this.highAcc = null;
+            }
+            if (this.lowOp !== null) {
+                const r = this.applyBinary(this.lowOp, this.lowAcc, resolved);
+                if (r === null) return;
+                resolved = r;
+            }
+            this.lowAcc = resolved;
+            this.lowOp = op;
+            this.currentValue = this.roundResult(resolved).toString();
+        }
+
+        this.expressionStr += `${this.formatNumber(displayValue)} ${symbol} `;
         this.shouldResetDisplay = true;
         this.updateExpression();
+        this.updateDisplay();
     }
 
     calculate() {
-        if (this.operator === null || this.shouldResetDisplay) return;
-        const prev = parseFloat(this.previousValue);
-        const current = parseFloat(this.currentValue);
-        const opSymbol = this.getOperatorSymbol(this.operator);
-        const entry = `${this.formatNumber(this.previousValue)} ${opSymbol} ${this.formatNumber(this.currentValue)}`;
+        if (this.lowOp === null && this.highOp === null) return;
+        if (this.shouldResetDisplay) return;
 
-        this.executeCalculation();
+        const x = parseFloat(this.currentValue);
+        if (isNaN(x)) return;
+        const displayValue = this.currentValue;
 
-        const result = this.currentValue;
-        this.addHistoryEntry(`${entry} = ${this.formatNumber(result)}`);
-
-        this.operator = null;
-        this.shouldResetDisplay = true;
-        this.updateExpression();
-    }
-
-    executeCalculation() {
-        const prev = parseFloat(this.previousValue);
-        const current = parseFloat(this.currentValue);
-        if (isNaN(prev) || isNaN(current)) return;
-
-        let result;
-        switch (this.operator) {
-            case '+': result = prev + current; break;
-            case '-': result = prev - current; break;
-            case '*': result = prev * current; break;
-            case '/':
-                if (current === 0) {
-                    this.showError('0で割ることはできません');
-                    return;
-                }
-                result = prev / current;
-                break;
-            case '^':
-                result = Math.pow(prev, current);
-                break;
-            default: return;
+        let resolved = x;
+        if (this.highOp !== null) {
+            const r = this.applyBinary(this.highOp, this.highAcc, x);
+            if (r === null) return;
+            resolved = r;
+        }
+        if (this.lowOp !== null) {
+            const r = this.applyBinary(this.lowOp, this.lowAcc, resolved);
+            if (r === null) return;
+            resolved = r;
         }
 
-        this.currentValue = this.roundResult(result).toString();
+        const fullExpr = this.expressionStr + this.formatNumber(displayValue);
+        const rounded = this.roundResult(resolved);
+        this.addHistoryEntry(`${fullExpr} = ${this.formatNumber(rounded.toString())}`);
+
+        this.expressionStr = '';
+        this.currentValue = rounded.toString();
+        this.lowAcc = null;
+        this.lowOp = null;
+        this.highAcc = null;
+        this.highOp = null;
+        this.shouldResetDisplay = true;
+
+        this.updateExpression();
         this.updateDisplay();
     }
 
@@ -217,13 +312,9 @@ class ScientificCalculator {
     }
 
     percent() {
-        const current = parseFloat(this.currentValue);
-        if (this.operator === null) {
-            this.currentValue = (current / 100).toString();
-        } else {
-            const prev = parseFloat(this.previousValue);
-            this.currentValue = ((prev * current) / 100).toString();
-        }
+        const x = parseFloat(this.currentValue);
+        if (isNaN(x)) return;
+        this.currentValue = this.roundResult(x / 100).toString();
         this.updateDisplay();
     }
 
@@ -239,8 +330,11 @@ class ScientificCalculator {
 
     clear() {
         this.currentValue = '0';
-        this.previousValue = '';
-        this.operator = null;
+        this.lowAcc = null;
+        this.lowOp = null;
+        this.highAcc = null;
+        this.highOp = null;
+        this.expressionStr = '';
         this.shouldResetDisplay = false;
         this.updateDisplay();
         this.updateExpression();
@@ -255,6 +349,56 @@ class ScientificCalculator {
             this.currentValue = this.currentValue.slice(0, -1);
         }
         this.updateDisplay();
+    }
+
+    /* ----------------------------------------------------------
+       メモリ機能
+    ---------------------------------------------------------- */
+    handleMemory(action) {
+        const x = parseFloat(this.currentValue);
+        switch (action) {
+            case 'add':
+                if (!isNaN(x)) this.memory = this.roundResult(this.memory + x);
+                this.shouldResetDisplay = true;
+                break;
+            case 'sub':
+                if (!isNaN(x)) this.memory = this.roundResult(this.memory - x);
+                this.shouldResetDisplay = true;
+                break;
+            case 'recall':
+                this.currentValue = this.memory.toString();
+                this.shouldResetDisplay = true;
+                this.updateDisplay();
+                break;
+            case 'clear':
+                this.memory = 0;
+                break;
+        }
+        this.saveMemory();
+        this.updateMemoryIndicator();
+    }
+
+    updateMemoryIndicator() {
+        if (!this.memoryIndicator) return;
+        if (this.memory !== 0) {
+            this.memoryIndicator.textContent = 'M';
+            this.memoryIndicator.classList.add('active');
+        } else {
+            this.memoryIndicator.textContent = '';
+            this.memoryIndicator.classList.remove('active');
+        }
+    }
+
+    saveMemory() {
+        localStorage.setItem('sciCalcMemory', this.memory.toString());
+    }
+
+    loadMemory() {
+        const m = localStorage.getItem('sciCalcMemory');
+        if (m !== null) {
+            const v = parseFloat(m);
+            if (!isNaN(v)) this.memory = v;
+        }
     }
 
     /* ----------------------------------------------------------
@@ -343,7 +487,7 @@ class ScientificCalculator {
     }
 
     /* ----------------------------------------------------------
-       環境設定（角度・Sci 表示状態）の永続化
+       環境設定の永続化
     ---------------------------------------------------------- */
     savePreferences() {
         localStorage.setItem('sciCalcPrefs', JSON.stringify({
@@ -375,19 +519,13 @@ class ScientificCalculator {
     }
 
     updateExpression() {
-        if (this.operator === null) {
-            this.expression.textContent = '';
-        } else {
-            const opSymbol = this.getOperatorSymbol(this.operator);
-            this.expression.textContent = `${this.formatNumber(this.previousValue)} ${opSymbol}`;
-        }
+        this.expression.textContent = this.expressionStr;
     }
 
     getOperatorSymbol(op) {
         return { '+': '+', '-': '−', '*': '×', '/': '÷', '^': '^' }[op] || op;
     }
 
-    /** 浮動小数点誤差を丸める（指数表記もケア） */
     roundResult(x) {
         if (!isFinite(x)) return x;
         if (x === 0) return 0;
