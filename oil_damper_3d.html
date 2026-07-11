@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>オイルダンパー 3D 減衰力発生の仕組み</title>
+<style>
+  :root{
+    --bg:#10161d; --panel:rgba(16,24,32,.82); --line:#2a3947;
+    --text:#dfe7ee; --dim:#8fa3b3; --amber:#ffb454; --red:#e8534a; --blue:#4d8fe0;
+    --oil:#e8d86a; --teal:#5cc8b4;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--bg);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+    color:var(--text)}
+  #c3d{position:fixed;inset:0;display:block;touch-action:none}
+
+  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;backdrop-filter:blur(8px);padding:12px 14px}
+
+  /* ── タイトル ── */
+  #title{top:12px;left:12px;max-width:340px}
+  #title h1{font-size:15px;font-weight:700;letter-spacing:.06em}
+  #title h1 span{color:var(--amber)}
+  #title p{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.6}
+  #mech{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;font-size:10px}
+  #mech .step{border:1px solid var(--line);border-radius:5px;padding:3px 6px;
+    color:var(--dim);transition:all .25s}
+  #mech .step.on{color:var(--amber);border-color:var(--amber);background:rgba(255,180,84,.08)}
+  #mech .arw{color:#40525f;align-self:center}
+
+  /* ── 凡例 ── */
+  #legend{top:12px;right:12px;font-size:11px;line-height:1.9}
+  #legend b{font-size:11px;color:var(--dim);font-weight:600;letter-spacing:.08em}
+  .lg{display:flex;align-items:center;gap:8px}
+  .arrow{display:inline-block;width:26px;height:0;border-top:3px solid;position:relative}
+  .arrow::after{content:"";position:absolute;right:-1px;top:-5px;
+    border:4px solid transparent;border-left:6px solid}
+  .arrow.r{border-color:var(--red)}.arrow.r::after{border-left-color:var(--red)}
+  .arrow.b{border-color:var(--blue)}.arrow.b::after{border-left-color:var(--blue)}
+
+  /* ── 履歴ループ ── */
+  #loopBox{right:12px;bottom:118px;width:216px}
+  #loopBox b{font-size:11px;color:var(--dim);letter-spacing:.08em}
+  #loop{width:190px;height:170px;display:block;margin-top:6px}
+  #ceq{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.6}
+  #ceq em{color:var(--teal);font-style:normal;font-family:ui-monospace,monospace}
+
+  /* ── 読み値 ── */
+  #reads{left:12px;bottom:118px;font-size:11px;line-height:2;min-width:170px}
+  #reads .row{display:flex;justify-content:space-between;gap:14px}
+  #reads .row span:last-child{font-family:ui-monospace,monospace;color:var(--teal)}
+  #reads .row.f span:last-child{color:var(--amber);font-weight:700}
+
+  /* ── コントロール ── */
+  #ctrl{left:50%;transform:translateX(-50%);bottom:12px;display:flex;
+    gap:16px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:96vw}
+  .knob{display:flex;flex-direction:column;gap:3px;font-size:10px;color:var(--dim)}
+  .knob output{color:var(--text);font-family:ui-monospace,monospace}
+  input[type=range]{width:110px;accent-color:var(--amber);cursor:pointer}
+  button{background:#1d2935;color:var(--text);border:1px solid var(--line);
+    border-radius:7px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+  button:hover{border-color:var(--amber)}
+  button.primary{background:var(--amber);color:#20160a;font-weight:700;border-color:var(--amber)}
+  button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+  #hint{position:fixed;left:50%;transform:translateX(-50%);bottom:86px;
+    font-size:10px;color:#5b7285;pointer-events:none}
+
+  @media (max-width:760px){
+    #legend,#reads{display:none}
+    #loopBox{bottom:150px;width:170px}
+    #loop{width:146px;height:126px}
+    #title{max-width:250px}
+    input[type=range]{width:88px}
+  }
+</style>
+</head>
+<body>
+<canvas id="c3d"></canvas>
+
+<div class="panel" id="title">
+  <h1>オイルダンパー <span>減衰力発生の仕組み</span> 3D</h1>
+  <p>ドラッグで回転・ピンチ/ホイールでズーム。ピストンの制御弁をオイルが通過する際の抵抗が減衰力になります。</p>
+  <div id="mech">
+    <span class="step" id="s0">ロッドが伸縮</span><span class="arw">▶</span>
+    <span class="step" id="s1">オイルが制御弁を通過</span><span class="arw">▶</span>
+    <span class="step" id="s2">通過抵抗で圧力発生</span><span class="arw">▶</span>
+    <span class="step" id="s3">抵抗力(減衰力)</span>
+  </div>
+</div>
+
+<div class="panel" id="legend">
+  <b>オイルの流れ</b>
+  <div class="lg"><span class="arrow r"></span>縮み時(ロッド押込み)</div>
+  <div class="lg"><span class="arrow b"></span>伸び時(ロッド引出し)</div>
+</div>
+
+<div class="panel" id="reads">
+  <div class="row"><span>変位 x</span><span id="rx">0.0 mm</span></div>
+  <div class="row"><span>速度 v</span><span id="rv">0.0 mm/s</span></div>
+  <div class="row f"><span>減衰力 F = C·v</span><span id="rf">0.00 kN</span></div>
+</div>
+
+<div class="panel" id="loopBox">
+  <b>履歴ループ F–x</b>
+  <canvas id="loop" width="380" height="340"></canvas>
+  <div id="ceq">ΔW/cycle: <em id="dw">–</em><br>Ceq = ΔW/(π·ω·X₀²): <em id="ce">–</em></div>
+</div>
+
+<div class="panel" id="ctrl">
+  <button class="primary" id="playBtn">⏸ 一時停止</button>
+  <div class="knob">周波数 f <output id="of">0.40 Hz</output>
+    <input type="range" id="kf" min="0.1" max="1.2" step="0.05" value="0.4"></div>
+  <div class="knob">振幅 X₀ <output id="oa">50 mm</output>
+    <input type="range" id="ka" min="10" max="70" step="5" value="50"></div>
+  <div class="knob">減衰係数 C <output id="oc">8.0 kN·s/m</output>
+    <input type="range" id="kc" min="2" max="20" step="0.5" value="8"></div>
+  <div class="knob">手動 位置 <output id="om">–</output>
+    <input type="range" id="km" min="-1" max="1" step="0.01" value="0"></div>
+  <button id="cutBtn">断面 ON</button>
+</div>
+<div id="hint">1本指ドラッグ:回転 / 2本指:ズーム</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+const canvas = document.getElementById('c3d');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x10161d);
+scene.fog = new THREE.Fog(0x10161d, 18, 42);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+
+/* ── ライティング ── */
+scene.add(new THREE.AmbientLight(0x8fa8bd, .55));
+const key = new THREE.DirectionalLight(0xfff2dd, .95); key.position.set(6,10,8); scene.add(key);
+const fill = new THREE.DirectionalLight(0x6fa8ff, .35); fill.position.set(-8,4,-6); scene.add(fill);
+const rim  = new THREE.DirectionalLight(0xffffff, .25); rim.position.set(0,-6,-8); scene.add(rim);
+
+/* ── 寸法 ── */
+const L   = 6.0;   // シリンダ長
+const R   = 1.15;  // シリンダ内半径
+const WALL= 0.14;
+const RODR= 0.34;
+const PIS_T = 0.55;          // ピストン厚
+const AMP_MAX = 1.5;         // ピストン最大ストローク(3D単位)
+const CUT = {start: 0.35*Math.PI, len: 1.30*Math.PI}; // 断面開口
+
+/* ── マテリアル ── */
+const mMetal = new THREE.MeshStandardMaterial({color:0x3f7a6e, metalness:.55, roughness:.42, side:THREE.DoubleSide});
+const mMetalDark = new THREE.MeshStandardMaterial({color:0x2f5d54, metalness:.6, roughness:.5});
+const mRod  = new THREE.MeshStandardMaterial({color:0x3b82c4, metalness:.65, roughness:.3});
+const mPiston = new THREE.MeshStandardMaterial({color:0x2f6d61, metalness:.5, roughness:.45});
+const mValve = new THREE.MeshStandardMaterial({color:0xb08d3e, metalness:.8, roughness:.35});
+const mPack = new THREE.MeshStandardMaterial({color:0xd4a017, metalness:.3, roughness:.6});
+const mOilL = new THREE.MeshStandardMaterial({color:0xe8d86a, transparent:true, opacity:.42, roughness:.25, metalness:0, side:THREE.DoubleSide, depthWrite:false});
+const mOilR = mOilL.clone();
+
+const damper = new THREE.Group(); scene.add(damper);
+
+/* X軸方向に高さ1のシリンダ形状(部分角対応) */
+function tubeGeo(r, partial, open){
+  const g = new THREE.CylinderGeometry(r, r, 1, 48, 1, !!open,
+    partial ? CUT.start : 0, partial ? CUT.len : Math.PI*2);
+  g.rotateZ(-Math.PI/2);
+  return g;
+}
+
+/* ── シリンダ外筒(断面切替用に2種) ── */
+const tubeCutG  = tubeGeo(R+WALL, true,  true);
+const tubeFullG = tubeGeo(R+WALL, false, true);
+const tube = new THREE.Mesh(tubeCutG, mMetal);
+tube.scale.x = L; damper.add(tube);
+/* 内面 */
+const tubeInCutG  = tubeGeo(R, true,  true);
+const tubeInFullG = tubeGeo(R, false, true);
+const tubeIn = new THREE.Mesh(tubeInCutG, mMetalDark);
+tubeIn.scale.x = L; damper.add(tubeIn);
+
+/* ── 端部キャップ+ロッドガイド ── */
+function endCap(x){
+  const grp = new THREE.Group();
+  const cap = new THREE.Mesh(tubeGeo(R+WALL, false, false), mMetal);
+  cap.scale.x = 0.22; grp.add(cap);
+  // パッキン(金色リング)
+  const pk = new THREE.Mesh(new THREE.TorusGeometry(RODR+0.05, 0.055, 10, 32), mPack);
+  pk.rotation.y = Math.PI/2; pk.position.x = x>0 ? 0.16 : -0.16; grp.add(pk);
+  grp.position.x = x;
+  damper.add(grp);
+}
+endCap(-L/2-0.11); endCap(L/2+0.11);
+
+/* ── ロッド(貫通型・両端クレビス) ── */
+const rodGrp = new THREE.Group(); damper.add(rodGrp);
+const rodLen = L + 4.4;
+const rod = new THREE.Mesh(tubeGeo(RODR, false, false), mRod);
+rod.scale.x = rodLen; rodGrp.add(rod);
+function clevis(x, dir){
+  const g = new THREE.Group();
+  const eye = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.2, 14, 36), mRod);
+  g.add(eye);
+  const neck = new THREE.Mesh(tubeGeo(0.28, false, false), mRod);
+  neck.scale.x = 0.7; neck.position.x = dir*0.55; g.add(neck);
+  g.position.x = x; rodGrp.add(g);
+}
+clevis(-rodLen/2-0.4, 1); clevis(rodLen/2+0.4, -1);
+
+/* ── ピストン+制御弁 ── */
+const pistonGrp = new THREE.Group(); rodGrp.add(pistonGrp);
+const pis = new THREE.Mesh(tubeGeo(R-0.02, false, false), mPiston);
+pis.scale.x = PIS_T; pistonGrp.add(pis);
+/* 制御弁:4本の貫通ポート */
+const VN = 4, VR = 0.62;
+const valveAngles = [];
+for(let i=0;i<VN;i++){
+  const a = Math.PI*0.25 + i*Math.PI/2;   // 45°,135°,225°,315°
+  valveAngles.push(a);
+  const port = new THREE.Mesh(tubeGeo(0.115, false, true), mValve);
+  port.scale.x = PIS_T+0.16;
+  port.position.set(0, Math.sin(a)*VR, Math.cos(a)*VR);
+  pistonGrp.add(port);
+}
+
+/* ── オイル室(左右) ── */
+const oilGeo = tubeGeo(R-0.03, true, false);
+const oilLm = new THREE.Mesh(oilGeo, mOilL); damper.add(oilLm);
+const oilRm = new THREE.Mesh(oilGeo, mOilR); damper.add(oilRm);
+
+/* ── オイル粒子(弁を通過する流れ) ── */
+const PN = 56;
+const pGeo = new THREE.SphereGeometry(0.075, 8, 8);
+const pMatR = new THREE.MeshBasicMaterial({color:0xe8534a});
+const pMatB = new THREE.MeshBasicMaterial({color:0x4d8fe0});
+const parts = [];
+for(let i=0;i<PN;i++){
+  const m = new THREE.Mesh(pGeo, pMatB);
+  const a = valveAngles[i % VN];
+  m.userData = {a, p: (Math.random()*2-1)*1.1, jit: (Math.random()-0.5)*0.05};
+  m.visible = false;
+  pistonGrp.add(m); parts.push(m);
+}
+
+/* ── 床グリッド ── */
+const grid = new THREE.GridHelper(30, 30, 0x24333f, 0x1a2530);
+grid.position.y = -2.6; scene.add(grid);
+
+/* ── カメラ操作(自作オービット) ── */
+let theta = 0.5, phi = 1.18, dist = 12.5;
+const target = new THREE.Vector3(0, 0, 0);
+function updateCam(){
+  phi = Math.max(0.15, Math.min(Math.PI-0.15, phi));
+  dist = Math.max(5, Math.min(26, dist));
+  camera.position.set(
+    target.x + dist*Math.sin(phi)*Math.sin(theta),
+    target.y + dist*Math.cos(phi),
+    target.z + dist*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(target);
+}
+let drag=false, px=0, py=0, pinch=0;
+canvas.addEventListener('pointerdown', e=>{drag=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  theta -= (e.clientX-px)*0.006; phi -= (e.clientY-py)*0.006;
+  px=e.clientX; py=e.clientY; updateCam();
+});
+canvas.addEventListener('pointerup', ()=>drag=false);
+canvas.addEventListener('wheel', e=>{e.preventDefault(); dist *= (1+Math.sign(e.deltaY)*0.08); updateCam();}, {passive:false});
+canvas.addEventListener('touchstart', e=>{
+  if(e.touches.length===2){
+    drag=false;
+    pinch = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+  }
+},{passive:true});
+canvas.addEventListener('touchmove', e=>{
+  if(e.touches.length===2){
+    const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    dist *= pinch/d; pinch=d; updateCam();
+  }
+},{passive:true});
+
+/* ── UI ── */
+const $ = id=>document.getElementById(id);
+const ui = {f:$('kf'), a:$('ka'), c:$('kc'), m:$('km'),
+  of:$('of'), oa:$('oa'), oc:$('oc'), om:$('om'),
+  play:$('playBtn'), cut:$('cutBtn'),
+  rx:$('rx'), rv:$('rv'), rf:$('rf'), dw:$('dw'), ce:$('ce')};
+
+let playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+let manual = false;
+let cutaway = true;
+let t = 0;
+let xPrev = 0;
+
+function setPlayLabel(){ ui.play.textContent = playing ? '⏸ 一時停止' : '▶ 再生'; }
+setPlayLabel();
+ui.play.onclick = ()=>{ playing=!playing; manual=false; ui.om.textContent='–'; setPlayLabel(); };
+ui.m.addEventListener('input', ()=>{
+  manual = true; playing = false; setPlayLabel();
+  ui.om.textContent = (ui.m.value*ampMM()).toFixed(0)+' mm';
+});
+ui.cut.onclick = ()=>{
+  cutaway = !cutaway;
+  tube.geometry  = cutaway ? tubeCutG  : tubeFullG;
+  tubeIn.geometry= cutaway ? tubeInCutG: tubeInFullG;
+  ui.cut.textContent = cutaway ? '断面 ON' : '断面 OFF';
+};
+ui.f.addEventListener('input', ()=> ui.of.textContent = (+ui.f.value).toFixed(2)+' Hz');
+ui.a.addEventListener('input', ()=> ui.oa.textContent = ui.a.value+' mm');
+ui.c.addEventListener('input', ()=> ui.oc.textContent = (+ui.c.value).toFixed(1)+' kN·s/m');
+function ampMM(){ return +ui.a.value; }
+
+/* ── 履歴ループ描画 ── */
+const lc = $('loop').getContext('2d');
+const trail = [];
+let Wacc = 0, cycT = 0, dwLast = null;
+
+function drawLoop(x_mm, F_kN, Xmax, Fmax){
+  const W = 380, H = 340, cx = W/2, cy = H/2;
+  lc.clearRect(0,0,W,H);
+  lc.strokeStyle = '#2a3947'; lc.lineWidth = 1;
+  lc.beginPath(); lc.moveTo(0,cy); lc.lineTo(W,cy); lc.moveTo(cx,0); lc.lineTo(cx,H); lc.stroke();
+  lc.fillStyle = '#5b7285'; lc.font = '20px ui-monospace,monospace';
+  lc.fillText('x', W-24, cy-8); lc.fillText('F', cx+8, 22);
+
+  const sx = (W*0.42)/Math.max(Xmax,1e-6), sy = (H*0.40)/Math.max(Fmax,1e-6);
+  trail.push({x:x_mm, F:F_kN});
+  if(trail.length > 340) trail.shift();
+  lc.lineWidth = 2.4;
+  for(let i=1;i<trail.length;i++){
+    const a = i/trail.length;
+    lc.strokeStyle = `rgba(92,200,180,${0.08+0.85*a})`;
+    lc.beginPath();
+    lc.moveTo(cx+trail[i-1].x*sx, cy-trail[i-1].F*sy);
+    lc.lineTo(cx+trail[i].x*sx,   cy-trail[i].F*sy);
+    lc.stroke();
+  }
+  lc.fillStyle = '#ffb454';
+  lc.beginPath(); lc.arc(cx+x_mm*sx, cy-F_kN*sy, 5, 0, Math.PI*2); lc.fill();
+}
+
+/* ── メインループ ── */
+const steps = [$('s0'),$('s1'),$('s2'),$('s3')];
+const clock = new THREE.Clock();
+let vSm = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const f = +ui.f.value, A = ampMM(), C = +ui.c.value;
+  const w = 2*Math.PI*f;
+
+  /* 運動学 */
+  let xN, vMS; // xN: -1..1, vMS: m/s
+  if(manual){
+    xN = +ui.m.value;
+    const x_m = xN*A/1000;
+    const vInst = (x_m - xPrev)/Math.max(dt,1e-4);
+    vSm += (vInst - vSm)*0.25;
+    vMS = vSm; xPrev = x_m;
+  }else{
+    if(playing) t += dt;
+    xN = Math.sin(w*t);
+    vMS = (A/1000)*w*Math.cos(w*t);
+    xPrev = xN*A/1000; vSm = vMS;
+  }
+  const x_mm = xN*A;
+  const F_kN = -C*vMS;          // 減衰力(抵抗方向)
+  const pisX = xN*AMP_MAX;      // 3D上のピストン位置
+
+  rodGrp.position.x = pisX;
+
+  /* オイル室の伸縮 */
+  const inL = L/2 - 0.02;
+  const lLen = Math.max(0.05, (pisX - PIS_T/2) + inL);
+  const rLen = Math.max(0.05, inL - (pisX + PIS_T/2));
+  oilLm.scale.x = lLen; oilLm.position.x = -inL + lLen/2;
+  oilRm.scale.x = rLen; oilRm.position.x =  inL - rLen/2;
+
+  /* 圧力の色表現:圧縮側の室をオレンジ寄りに */
+  const vNorm = Math.min(1, Math.abs(vMS)/((A/1000)*2*Math.PI*1.2));
+  const hot = new THREE.Color(0xf0a24a), base = new THREE.Color(0xe8d86a);
+  if(vMS > 0){ // ピストン+X方向 → 右室圧縮
+    mOilR.color.copy(base).lerp(hot, vNorm); mOilR.opacity = .42+.25*vNorm;
+    mOilL.color.copy(base); mOilL.opacity = .42;
+  }else{
+    mOilL.color.copy(base).lerp(hot, vNorm); mOilL.opacity = .42+.25*vNorm;
+    mOilR.color.copy(base); mOilR.opacity = .42;
+  }
+
+  /* 粒子:弁を通過(ピストンと逆方向へ相対流動) */
+  const active = Math.abs(vMS) > 0.004;
+  const dir = -Math.sign(vMS || 1);
+  const spd = 2.2*vNorm + 0.3;
+  const mat = vMS > 0 ? pMatB : pMatR;   // 伸び=青 / 縮み=赤(向きは表示上の便宜)
+  for(const m of parts){
+    m.visible = active;
+    if(!active) continue;
+    m.material = mat;
+    const u = m.userData;
+    u.p += dir*spd*dt;
+    if(u.p >  1.1) u.p = -1.1;
+    if(u.p < -1.1) u.p =  1.1;
+    m.position.set(u.p, Math.sin(u.a)*VR + u.jit, Math.cos(u.a)*VR + u.jit);
+    const s = 1 - Math.min(1, Math.max(0, (Math.abs(u.p)-0.5)/0.6))*0.6;
+    m.scale.setScalar(s);
+  }
+
+  /* フローチャート ハイライト */
+  const lvl = active ? (vNorm>0.5?3 : vNorm>0.2?2 : 1) : 0;
+  steps.forEach((s,i)=> s.classList.toggle('on', active && i<=lvl || (active && i===0)));
+  if(active){ steps.forEach((s,i)=>s.classList.add('on')); }
+  else steps.forEach(s=>s.classList.remove('on'));
+
+  /* 読み値 */
+  ui.rx.textContent = x_mm.toFixed(1)+' mm';
+  ui.rv.textContent = (vMS*1000).toFixed(0)+' mm/s';
+  ui.rf.textContent = F_kN.toFixed(2)+' kN';
+
+  /* ΔW と Ceq(1周期ごとに更新) */
+  if(playing && !manual){
+    Wacc += F_kN*1000 * ( -(vMS)*dt );   // ∮F dx ≒ Σ F·v·dt(N·m)※F=-Cv なので消散は正
+    Wacc += 0; // (整合のため保持)
+    cycT += dt;
+    const T = 1/f;
+    if(cycT >= T){
+      dwLast = Math.abs(Wacc);
+      const X0 = A/1000;
+      const ceq = dwLast/(Math.PI*w*X0*X0);
+      ui.dw.textContent = dwLast.toFixed(1)+' J';
+      ui.ce.textContent = (ceq/1000).toFixed(2)+' kN·s/m';
+      Wacc = 0; cycT = 0;
+    }
+  }
+
+  const Fmax = C*(A/1000)*w*1.15;
+  drawLoop(x_mm, F_kN, A*1.15, Fmax);
+
+  renderer.render(scene, camera);
+}
+
+function resize(){
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize(); updateCam(); setPlayLabel();
+animate();
+})();
+</script>
+</body>
+</html>
