@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カテナリーから構造解析へ — Rhino × Grasshopper × Claude Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --stone:#EDEAE2;        /* 石灰岩 */
+  --stone-deep:#E2DDD2;
+  --ink:#23282E;          /* 鋳鉄 */
+  --ink-soft:#4A5058;
+  --glass-green:#1E5C55;  /* 生誕のファサードのステンドグラス */
+  --glass-amber:#B75C22;  /* 受難側の夕光 */
+  --line:#C9C3B4;
+  --code-bg:#1C2126;
+  --code-ink:#D8DCE0;
+  --radius:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  font-family:'IBM Plex Sans JP',sans-serif;
+  background:var(--stone);color:var(--ink);
+  line-height:1.9;font-size:15.5px;
+  font-feature-settings:"palt";
+}
+.wrap{max-width:880px;margin:0 auto;padding:0 24px}
+/* ===== HERO ===== */
+header{
+  border-bottom:1px solid var(--line);
+  padding:64px 0 0;
+  background:linear-gradient(180deg,var(--stone) 0%,var(--stone-deep) 100%);
+}
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.22em;
+  color:var(--glass-green);text-transform:uppercase;margin-bottom:20px;
+}
+h1{
+  font-family:'Shippori Mincho B1',serif;font-weight:800;
+  font-size:clamp(30px,5.4vw,52px);line-height:1.35;letter-spacing:.02em;
+  margin-bottom:22px;
+}
+h1 em{font-style:normal;color:var(--glass-green)}
+.lede{max-width:620px;color:var(--ink-soft);margin-bottom:8px}
+.hero-tools{
+  font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft);
+  margin:26px 0 0;display:flex;gap:10px;flex-wrap:wrap;
+}
+.hero-tools span{border:1px solid var(--line);padding:4px 12px;border-radius:99px;background:rgba(255,255,255,.4)}
+/* カテナリーの署名要素 */
+.catenary{display:block;width:100%;height:auto;margin-top:34px}
+.catenary .chain{stroke:var(--ink);stroke-width:2.5;fill:none;stroke-linecap:round}
+.catenary .arch{stroke:var(--glass-amber);stroke-width:2.5;fill:none;stroke-dasharray:5 7;stroke-linecap:round}
+.catenary .mirror{stroke:var(--line);stroke-width:1;stroke-dasharray:2 6}
+.catenary text{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:var(--ink-soft)}
+/* ===== 本文 ===== */
+main{padding:56px 0 80px}
+section{margin-bottom:76px}
+.phase{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.2em;
+  color:var(--glass-amber);margin-bottom:10px;
+}
+h2{
+  font-family:'Shippori Mincho B1',serif;font-weight:800;
+  font-size:clamp(22px,3.4vw,30px);line-height:1.5;
+  margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid var(--ink);
+}
+h3{
+  font-family:'Shippori Mincho B1',serif;font-weight:600;font-size:18.5px;
+  margin:34px 0 12px;color:var(--ink);
+}
+h3::before{content:"◆";color:var(--glass-green);font-size:12px;margin-right:9px;vertical-align:2px}
+p{margin-bottom:14px}
+strong{font-weight:700}
+.note{
+  background:rgba(30,92,85,.07);border-left:3px solid var(--glass-green);
+  padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:18px 0;
+  font-size:14.5px;
+}
+.warn{
+  background:rgba(183,92,34,.08);border-left:3px solid var(--glass-amber);
+  padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:18px 0;
+  font-size:14.5px;
+}
+/* 表 */
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;background:#fff}
+th{
+  background:var(--ink);color:var(--stone);text-align:left;
+  padding:10px 14px;font-weight:500;font-size:13px;letter-spacing:.04em;
+}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td:first-child{white-space:nowrap;font-weight:500}
+/* コード */
+pre{
+  background:var(--code-bg);color:var(--code-ink);
+  padding:20px 22px;border-radius:var(--radius);overflow-x:auto;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.75;
+  margin:18px 0;
+}
+code{font-family:'IBM Plex Mono',monospace;font-size:.92em}
+p code,li code,td code{
+  background:rgba(35,40,46,.08);padding:1px 7px;border-radius:4px;
+}
+pre .c{color:#7E8C99}       /* comment */
+pre .k{color:#7FBFB4}       /* keyword */
+pre .s{color:#E0A868}       /* string */
+/* フロー図 */
+.flow{
+  display:flex;flex-direction:column;gap:0;margin:22px 0;
+}
+.flow-step{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px 20px;position:relative;
+}
+.flow-step+.flow-step{margin-top:30px}
+.flow-step+.flow-step::before{
+  content:"▼";position:absolute;top:-26px;left:50%;transform:translateX(-50%);
+  color:var(--glass-green);font-size:13px;
+}
+.flow-step b{display:block;font-size:15px;margin-bottom:4px}
+.flow-step small{color:var(--ink-soft);font-size:13.5px;display:block}
+.flow-step .who{
+  float:right;font-family:'IBM Plex Mono',monospace;font-size:11px;
+  color:var(--glass-amber);border:1px solid currentColor;border-radius:99px;
+  padding:1px 10px;margin-left:12px;
+}
+/* ディレクトリツリー */
+.tree{background:#fff;border:1px solid var(--line)}
+ul.plain{list-style:none;margin:14px 0}
+ul.plain li{padding-left:1.4em;text-indent:-1.4em;margin-bottom:8px}
+ul.plain li::before{content:"—";color:var(--glass-green);margin-right:.6em}
+ol{margin:14px 0 14px 1.4em}
+ol li{margin-bottom:8px}
+footer{
+  border-top:1px solid var(--line);padding:30px 0 50px;
+  color:var(--ink-soft);font-size:13px;
+}
+@media(max-width:600px){
+  body{font-size:14.5px}
+  td:first-child{white-space:normal}
+  .flow-step .who{float:none;display:inline-block;margin:6px 0 0}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Rhinoceros × Grasshopper × Claude Code — 実践ガイド</p>
+    <h1>吊るした鎖を、<br>ひっくり返すところから<em>構造解析</em>まで。</h1>
+    <p class="lede">ガウディはサグラダ・ファミリアの形を、鎖を吊るして重力に描かせ、それを上下反転して見つけた。この「逆さ吊り実験」は、Grasshopperの物理演算プラグイン Kangaroo でそのまま再現できる。本ガイドは、Rhino/Grasshopper初心者が Claude Code を相棒に、パラメトリックモデリングからカテナリーのフォームファインディング、Karamba3D による構造解析までを一気通貫で進めるための地図である。</p>
+    <div class="hero-tools">
+      <span>Rhino 8</span><span>Grasshopper</span><span>Kangaroo 2</span><span>Karamba3D</span><span>Claude Code</span><span>Python 3</span>
+    </div>
+    <svg class="catenary" viewBox="0 0 880 300" role="img" aria-label="吊るした鎖(カテナリー)と、それを反転したアーチの図">
+      <line class="mirror" x1="40" y1="150" x2="840" y2="150"/>
+      <!-- 吊り鎖 y = a·cosh(x/a) 下側 -->
+      <path class="chain" d="M120,150 C 200,265 320,290 440,290 C 560,290 680,265 760,150"/>
+      <circle cx="120" cy="150" r="4" fill="#23282E"/>
+      <circle cx="760" cy="150" r="4" fill="#23282E"/>
+      <!-- 反転アーチ 上側 -->
+      <path class="arch" d="M120,150 C 200,35 320,10 440,10 C 560,10 680,35 760,150"/>
+      <text x="440" y="278" text-anchor="middle">吊り鎖：引張のみ  y = a·cosh(x/a)</text>
+      <text x="440" y="38" text-anchor="middle">反転アーチ：圧縮のみ（ガウディの答え）</text>
+      <text x="826" y="144" text-anchor="end">反転軸</text>
+    </svg>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============================================== -->
+<section id="overview">
+  <p class="phase">OVERVIEW</p>
+  <h2>全体像 — 3つの道具の役割分担</h2>
+  <p>最初に押さえるべきは「どの道具が何を担当するか」である。役割が分かれば、学ぶ順番も自然に決まる。</p>
+  <table>
+    <tr><th>道具</th><th>役割</th><th>初心者が学ぶこと</th></tr>
+    <tr><td>Rhinoceros 8</td><td>3Dモデリングの土台。ジオメトリの表示・編集・保存(.3dm)</td><td>画面操作、レイヤー、基本コマンド(Line, Curve, Loft)だけで十分</td></tr>
+    <tr><td>Grasshopper</td><td>Rhinoに内蔵のビジュアルプログラミング環境。「手順」を組んで形を生成する</td><td>コンポーネントの接続、スライダー、そして最重要のデータツリー</td></tr>
+    <tr><td>Kangaroo 2</td><td>GH内の物理演算。逆さ吊り実験(フォームファインディング)を担当</td><td>Anchor・Load・Length(ばね)・Solverの4点セット</td></tr>
+    <tr><td>Karamba3D</td><td>GH内の構造解析(FEM)。梁・シェルの応力・変形・座屈を計算</td><td>「モデル組立→解析→結果表示」の定型パイプライン</td></tr>
+    <tr><td>Claude Code</td><td>あなたの側に立つエンジニア。GH用Pythonコードの生成、データ処理、レポート化、質問相手</td><td>プロジェクトフォルダの作り方と、良い依頼の仕方</td></tr>
+  </table>
+  <div class="note"><strong>核心となる分業:</strong> 形の定義と可視化はGrasshopperのキャンバス上で、ロジックが複雑になる部分(数式、データ整形、最適化ループ、レポート生成)はClaude Codeに書かせたPythonで、と分けると初心者でも破綻しない。</div>
+</section>
+
+<!-- ============================================== -->
+<section id="phase0">
+  <p class="phase">PHASE 0 — 環境構築(1日)</p>
+  <h2>環境構築</h2>
+  <h3>インストールするもの</h3>
+  <ol>
+    <li><strong>Rhino 8</strong>(90日評価版あり)。Grasshopperは同梱、追加インストール不要。Rhino 8からPython 3(CPython)がScriptEditorとGHPython双方で使え、numpy等のpipパッケージも導入できる。</li>
+    <li><strong>Kangaroo 2</strong> — Rhino 8に標準同梱(GHの「Kangaroo2」タブを確認)。</li>
+    <li><strong>Karamba3D</strong> — <code>food4rhino.com</code>から入手。無償のtrial/教育ライセンスで学習用途は足りる。</li>
+    <li><strong>Claude Code</strong> — ターミナルから <code>npm install -g @anthropic-ai/claude-code</code>。プロジェクトフォルダで <code>claude</code> を実行して開始。</li>
+    <li>(任意)<strong>Rhino MCP系プラグイン</strong> — ClaudeからRhinoを直接操作するコミュニティ製MCPサーバーが複数ある。導入すれば「Claudeに話しかけるとRhinoに形が生える」体験ができるが、必須ではない。まずはコード貼り付け方式で始めるのが確実。</li>
+  </ol>
+  <h3>Claude Codeとの接続方式は3つ</h3>
+  <table>
+    <tr><th>方式</th><th>仕組み</th><th>向き</th></tr>
+    <tr><td>① 貼り付け方式<br>(推奨スタート)</td><td>Claude CodeにGHPython用コードを書かせ、GHのPythonコンポーネントに貼り付ける</td><td>初心者。確実で、コードが手元に残り学習になる</td></tr>
+    <tr><td>② ファイル連携方式</td><td>GHがCSV/JSONを書き出し→Claude Codeのスクリプトが処理→結果をGHが読み戻す</td><td>解析結果の集計・レポート化。本ガイドの主軸</td></tr>
+    <tr><td>③ MCP直結方式</td><td>MCPサーバー経由でClaudeがRhino/GHを直接操作</td><td>慣れてから。環境依存のトラブルがあり得る</td></tr>
+  </table>
+  <div class="warn"><strong>初日のゴール:</strong> Rhinoを起動→<code>Grasshopper</code>とコマンド入力→キャンバスにSliderとCircleを置いて半径が動くこと。そしてClaude Codeに「GHPythonで円を10個並べるコードを書いて」と頼み、動かすこと。ここまでで環境は合格。</div>
+</section>
+
+<!-- ============================================== -->
+<section id="phase1">
+  <p class="phase">PHASE 1 — Grasshopperの考え方(1〜2週)</p>
+  <h2>基礎:データツリーを制する者がGHを制す</h2>
+  <p>Grasshopperの挫折ポイントは操作ではなく<strong>データツリー</strong>(データの階層構造)である。ここだけは腰を据えて理解したい。</p>
+  <h3>データツリーとは</h3>
+  <p>GHのデータは「パス付きのリストの集まり」で流れる。たとえば柱を5本、各柱に10個の点を作ると、データは <code>{0;0}</code>〜<code>{0;4}</code> という5つの枝(branch)に、各10個の要素が入った形になる。</p>
+  <pre>{0;0} → [pt0, pt1, ... pt9]   <span class="c"># 1本目の柱の点列</span>
+{0;1} → [pt0, pt1, ... pt9]   <span class="c"># 2本目の柱の点列</span>
+...
+{0;4} → [pt0, pt1, ... pt9]   <span class="c"># 5本目</span></pre>
+  <p>コンポーネントは「同じ枝同士」を対応させて計算する。思った通りに動かない時の原因の9割は、枝の構造の不一致である。<code>Flatten</code>(全部1列に潰す)、<code>Graft</code>(要素を1個ずつ枝に分ける)、<code>Simplify</code>(パスの余分な階層を消す)の3操作をまず覚える。</p>
+  <div class="note"><strong>Claude Codeの使い方:</strong> ツリーでハマったら、パネルに表示されたパス構造(例: <code>{0;0;1} N=12</code>)をそのままClaudeに貼って「この2入力を対応させるにはFlatten/Graftのどれを何に掛ける?」と聞く。データツリーの質問相手としてAIは極めて有効。</div>
+  <h3>この段階で作る練習課題</h3>
+  <ol>
+    <li>サイン波で高さが変わる柱の列(Series → 数式 → Move)</li>
+    <li>2本の曲線間のLoftで壁を作り、Contourで水平スライス</li>
+    <li>GHPythonコンポーネントで同じことをコードで再現(Claudeに書かせて読む)</li>
+  </ol>
+</section>
+
+<!-- ============================================== -->
+<section id="phase2">
+  <p class="phase">PHASE 2 — ガウディの幾何学(1〜2週)</p>
+  <h2>ガウディの形は「定規で描ける曲面」でできている</h2>
+  <p>サグラダ・ファミリアの複雑に見える形は、実は少数の<strong>線織面(ルールドサーフェス)</strong>の組み合わせでできている。直線を動かして生成できる曲面なので、パラメトリックモデリングと極めて相性が良い。</p>
+  <table>
+    <tr><th>幾何学</th><th>使われている場所</th><th>GHでの作り方</th></tr>
+    <tr><td>カテナリー(懸垂線)</td><td>アーチ、ヴォールトの断面形状</td><td>y = a·cosh(x/a) を数式 or GHPythonで点列生成 → Interpolate。またはKangarooで動的に生成</td></tr>
+    <tr><td>双曲面(Hyperboloid)</td><td>天井の採光口、柱の接合部</td><td>上下2つの円をDivideし、位相をずらして点同士を直線で結ぶ(Line) → Loft</td></tr>
+    <tr><td>双曲放物面(HP曲面)</td><td>屋根、壁面</td><td>ねじれの位置にある2直線をDivide → 対応点をLine → Loft</td></tr>
+    <tr><td>螺旋面(Helicoid)</td><td>階段、柱の表面の捻れ</td><td>直線を回転+上昇させながらコピー → Loft</td></tr>
+    <tr><td>樹状柱(二重回転柱)</td><td>身廊の柱。星形断面が上昇しつつ逆向きに二重回転し、上部で枝分かれ</td><td>星形多角形断面を、高さに応じて正逆2方向に回転させた断面群 → Loft。分岐はVectorで傾けた枝を複製</td></tr>
+  </table>
+  <h3>Claude Codeへの依頼例(GHPython)</h3>
+  <pre><span class="c"># Claude Codeへのプロンプト例:</span>
+<span class="s">「Rhino 8のGHPython(Python 3)で、双曲面の柱を生成する
+コンポーネントを書いて。入力: 下円半径r1、上円半径r2、高さh、
+分割数n、ねじれ角theta(度)。出力: 母線のLineリストとLoft面。
+rhinoscriptsyntaxではなくRhino.Geometryを使って。」</span></pre>
+  <p>返ってきたコードをGHPythonコンポーネントに貼り、入力端子名をコードの引数に合わせるだけで動く。<strong>エラーが出たら全文をそのままClaudeに貼る</strong>。この往復自体が最良の教材になる。</p>
+</section>
+
+<!-- ============================================== -->
+<section id="phase3">
+  <p class="phase">PHASE 3 — フォームファインディング(2週)</p>
+  <h2>逆さ吊り実験を Kangaroo で再現する</h2>
+  <p>ガウディは模型の鎖に小袋の重りを吊るし、純引張のつり合い形状を作り、写真を上下反転して<strong>純圧縮のアーチ・ヴォールト</strong>を得た。Kangaroo 2はこれを数値計算(動的緩和法)で行う。</p>
+  <h3>Kangarooの基本レシピ(単一アーチ)</h3>
+  <div class="flow">
+    <div class="flow-step"><span class="who">GH</span><b>1. 鎖のモデル化</b><small>2点間にLineを引き、Divideで20分割 → 隣接点間の線分リストを作る(これが鎖のリンク)</small></div>
+    <div class="flow-step"><span class="who">Kangaroo</span><b>2. ゴール設定</b><small>Length(各リンクをばね化、目標長=元長×0.9で少し縮ませる)+ Load(全節点に-Z方向の重力)+ Anchor(両端点を固定)</small></div>
+    <div class="flow-step"><span class="who">Kangaroo</span><b>3. Solver実行</b><small>ZombieSolverにゴールを接続 → つり合ったカテナリー形状の点列が出力される</small></div>
+    <div class="flow-step"><span class="who">GH</span><b>4. 反転</b><small>Mirror(XY平面)で上下反転 → 圧縮アーチの完成。Interpolateで曲線化</small></div>
+  </div>
+  <p>これをネットワークに拡張すると、複数アーチが連なるヴォールト(吊り模型そのもの)になる。メッシュのエッジをリンクに、交点に重りを掛ければよい。</p>
+  <div class="note"><strong>数式との突き合わせ:</strong> Kangarooの出力点列をCSVに書き出し、Claude Codeに「この点列をy=a·cosh(x/a)でフィッティングしてaを推定し、残差をグラフ化して」と頼む。物理演算と理論式が一致することを自分の目で確かめると、理解が一段深くなる。</div>
+</section>
+
+<!-- ============================================== -->
+<section id="phase4">
+  <p class="phase">PHASE 4 — 構造解析(2〜3週)</p>
+  <h2>Karamba3D で「その形は立つのか」を検証する</h2>
+  <p>Karamba3DはGH内で完結する有限要素解析(FEM)プラグイン。パイプラインは常にこの定型で、覚えるのは一度だけでよい。</p>
+  <div class="flow">
+    <div class="flow-step"><span class="who">GH</span><b>1. ジオメトリ → 要素化</b><small>アーチ曲線をShatterで分割 → LineToBeam(梁要素)。面はMeshToShell(シェル要素)。ここで要素ID(名前)を付けておくと後の集計が楽</small></div>
+    <div class="flow-step"><span class="who">Karamba</span><b>2. 断面と材料</b><small>CrossSection(円形断面 φ300 など)+ Material(石材相当なら E≈50GPa・圧縮強め・引張弱めの特性、鋼ならS235等のライブラリ値)</small></div>
+    <div class="flow-step"><span class="who">Karamba</span><b>3. 支持と荷重</b><small>Support(アーチ脚部を固定: Tx,Ty,Tz,Rx,Ry,Rz)+ Load(自重はGravity一発。加えて点荷重・ライン荷重を設定)</small></div>
+    <div class="flow-step"><span class="who">Karamba</span><b>4. 組立と解析</b><small>AssembleModel → AnalyzeThI(一次解析)。大スパンならThII(幾何非線形)や座屈解析(BucklingModes)へ</small></div>
+    <div class="flow-step"><span class="who">Karamba</span><b>5. 結果の取得</b><small>ModelView/BeamView(変形図・応力色分け)、Utilization(検定比)、NodalDisplacements、BeamForces(N, V, M)</small></div>
+    <div class="flow-step"><span class="who">Claude Code</span><b>6. 書き出しと帳票化</b><small>要素ID・応力・変位・検定比をCSVへ書き出し → Pythonで集計・グラフ化 → 性能確認書(docx/HTML)を自動生成</small></div>
+  </div>
+  <h3>カテナリーの威力を数値で見る実験</h3>
+  <p>同スパン・同断面で <strong>①半円アーチ ②放物線アーチ ③カテナリーアーチ</strong> の3本を並べて自重解析し、曲げモーメントMの最大値を比較する。カテナリーだけMがほぼゼロ(軸力のみ)になる。ガウディが鎖に形を聞いた理由が、数字で腑に落ちる瞬間である。</p>
+  <div class="warn"><strong>正直な注意:</strong> Karambaの標準は弾性の梁・シェル解析であり、実際の組積造(石積み)の挙動(目地の開き、引張を持てない性質)の厳密な再現は上級テーマ(リミットアナリシス等)になる。学習段階では「圧縮主体の形状ほど曲げが消える」ことの確認、つまり形状の良否比較に使うのが正しいスタンス。</div>
+</section>
+
+<!-- ============================================== -->
+<section id="data">
+  <p class="phase">DATA — プロジェクトのデータ構成</p>
+  <h2>データ構成 — Claude Codeと共有するフォルダ設計</h2>
+  <p>Claude Codeはフォルダの中身を読んで働く。GHとの受け渡しファイルを規約化しておくと、依頼が一言で済むようになる。</p>
+  <pre class="tree">sagrada-study/
+├── CLAUDE.md              <span class="c"># Claude Codeへの常設指示(規約・単位系・目的)</span>
+├── gh/
+│   ├── 01_geometry.gh     <span class="c"># 幾何生成(双曲面柱・カテナリー)</span>
+│   ├── 02_formfinding.gh  <span class="c"># Kangaroo逆さ吊り</span>
+│   └── 03_analysis.gh     <span class="c"># Karambaパイプライン</span>
+├── rhino/
+│   └── model.3dm          <span class="c"># ベースのRhinoファイル</span>
+├── exchange/              <span class="c"># GH ⇄ Python の受け渡し(規約の心臓部)</span>
+│   ├── params.json        <span class="c"># 入力パラメータ(スパン、断面径、荷重…)</span>
+│   ├── nodes.csv          <span class="c"># id, x, y, z</span>
+│   ├── elements.csv       <span class="c"># id, node_i, node_j, section, material</span>
+│   └── results.csv        <span class="c"># element_id, N, V, M, util, disp_max</span>
+├── scripts/               <span class="c"># Claude Codeが書くPython</span>
+│   ├── fit_catenary.py    <span class="c"># カテナリーフィッティング</span>
+│   ├── summarize.py       <span class="c"># 結果集計・グラフ生成</span>
+│   └── make_report.py     <span class="c"># 性能確認書(docx/HTML)生成</span>
+├── output/
+│   ├── figs/              <span class="c"># グラフ・キャプチャ</span>
+│   └── report.docx        <span class="c"># 自動生成レポート</span>
+└── notes/                 <span class="c"># 学習メモ(Claudeに要約させると復習が楽)</span></pre>
+  <h3>受け渡しデータの定義例</h3>
+  <pre><span class="c"># params.json — GHが読み込み、スライダー既定値を上書きする</span>
+{
+  <span class="s">"span_m"</span>: 12.0,
+  <span class="s">"rise_m"</span>: 8.0,
+  <span class="s">"segments"</span>: 24,
+  <span class="s">"section"</span>: {<span class="s">"type"</span>: <span class="s">"circle"</span>, <span class="s">"d_mm"</span>: 300},
+  <span class="s">"material"</span>: <span class="s">"stone_E50GPa"</span>,
+  <span class="s">"loads"</span>: [{<span class="s">"kind"</span>: <span class="s">"gravity"</span>, <span class="s">"factor"</span>: 1.0}]
+}</pre>
+  <div class="note"><strong>CLAUDE.mdに書くべきこと:</strong> ①単位系(長さm・力kN・応力MPaに統一) ②exchange/ のスキーマ ③「results.csvの列名は変えない」等の禁止事項 ④座標系(Z上向き)。これだけでClaude Codeの出力が安定する。あなたのCEOエージェント構成を流用するなら、scripts/ 配下の各処理をサブエージェントのタスクとして割り振る形にそのまま載る。</div>
+</section>
+
+<!-- ============================================== -->
+<section id="capstone">
+  <p class="phase">CAPSTONE — 集大成(3〜4週)</p>
+  <h2>ミニ・サグラダ:身廊1ベイの生成と解析</h2>
+  <p>実物の完全再現ではなく、<strong>身廊1スパン(1ベイ)の簡略モデル</strong>を自作パラメータで組む。これが初心者の到達点として現実的で、かつ全技術が入る。</p>
+  <ol>
+    <li><strong>柱:</strong> Phase 2の樹状柱(星形断面の二重回転)を4本。上部でVectorを傾けた枝分かれを付ける</li>
+    <li><strong>ヴォールト:</strong> 柱頂部の枝先をAnchorにしたKangarooネットで逆さ吊り → 反転して圧縮ヴォールト面を生成</li>
+    <li><strong>解析:</strong> 柱=梁要素、ヴォールト=シェル要素としてKarambaへ。自重+屋根荷重で変形・検定比を確認</li>
+    <li><strong>最適化:</strong> Galapagos(GH標準の遺伝的アルゴリズム)で「重量最小かつ検定比&lt;1」となる断面径・ライズ比を探索。Phase 3で作ったグリッドサーチ的発想のGH版</li>
+    <li><strong>帳票:</strong> results.csvをClaude Codeに渡し、比較表・応力図・結論をまとめたレポートを自動生成</li>
+  </ol>
+  <h3>学習ロードマップ(合計8〜12週の目安)</h3>
+  <table>
+    <tr><th>週</th><th>フェーズ</th><th>合格ライン</th></tr>
+    <tr><td>1</td><td>Phase 0 環境構築</td><td>GHとClaude Codeの往復が1回成功</td></tr>
+    <tr><td>2–3</td><td>Phase 1 GH基礎</td><td>Flatten/Graftを意図して使い分けられる</td></tr>
+    <tr><td>4–5</td><td>Phase 2 ガウディ幾何</td><td>双曲面柱をGHPythonで生成できる</td></tr>
+    <tr><td>6–7</td><td>Phase 3 Kangaroo</td><td>カテナリーを生成し、理論式と一致を確認</td></tr>
+    <tr><td>8–10</td><td>Phase 4 Karamba</td><td>3種アーチの曲げ比較を説明できる</td></tr>
+    <tr><td>11–12</td><td>Capstone</td><td>1ベイの解析レポートが自動出力される</td></tr>
+  </table>
+  <h3>つまずいた時の鉄則</h3>
+  <ul class="plain">
+    <li>エラー文・パネルのツリー表示・スクリーンショットの説明文をそのままClaudeに貼る。要約しない方が早い</li>
+    <li>GHファイルが巨大化したらGroup+名前付けで区画整理。「このGroupは何をしている?」とClaudeに説明させて検算する</li>
+    <li>1つのghファイルに全部入れない。geometry / formfinding / analysis を分け、exchange/ 経由で繋ぐ</li>
+    <li>単位系の混在(mmとm)は構造解析で必ず事故る。CLAUDE.mdの規約を正とする</li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>カテナリーから構造解析へ — Rhino × Grasshopper × Claude Code 実践ガイド / 2026-07-05 作成</p>
+    <p>参考キーワード: rhinoscriptsyntax, Rhino.Geometry, Kangaroo2 ZombieSolver, Karamba3D AssembleModel, Galapagos, funicular form-finding</p>
+  </div>
+</footer>
+
+</body>
+</html>
